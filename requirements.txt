@@ -1,0 +1,20 @@
+# CRITICAL: Pin versions for reproducible builds - update quarterly or for security patches
+# Python 3.11 or 3.12 required (Python 3.14 not yet supported by all dependencies)
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+httpx==0.26.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+redis==5.0.1
+sse-starlette==2.1.0  # FIXED: 1.8.0 doesn't exist on PyPI, using 2.1.0
+tiktoken==0.5.2
+prometheus-client==0.19.0
+opentelemetry-api==1.22.0
+opentelemetry-sdk==1.22.0
+opentelemetry-instrumentation-fastapi==0.43b0
+structlog==24.1.0
+sentry-sdk[fastapi]==1.39.0
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
