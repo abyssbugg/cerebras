@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     # Cerebras API
     cerebras_api_key: str = ""
     cerebras_base_url: str = "https://api.cerebras.ai/v1"
-    cerebras_model: str = "llama-3.3-70b"
+    cerebras_model: str = "zai-glm-4.7"
 
     # Gateway Config
     environment: str = "development"

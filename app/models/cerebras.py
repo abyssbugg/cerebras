@@ -4,7 +4,13 @@ from pydantic import BaseModel, Field
 
 class CerebrasMessage(BaseModel):
     role: Literal["system", "user", "assistant"]
-    content: str
+    content: Optional[str] = None
+    reasoning: Optional[str] = None  # zai-glm-4.7 uses reasoning instead of content
+    
+    @property
+    def text(self) -> str:
+        """Get the actual text content (supports both content and reasoning fields)."""
+        return self.content or self.reasoning or ""
 
 
 class CerebrasChatRequest(BaseModel):
@@ -41,6 +47,12 @@ class CerebrasChatResponse(BaseModel):
 class CerebrasStreamDelta(BaseModel):
     role: Optional[str] = None
     content: Optional[str] = None
+    reasoning: Optional[str] = None  # zai-glm-4.7 uses reasoning
+    
+    @property
+    def text(self) -> str:
+        """Get the actual text content."""
+        return self.content or self.reasoning or ""
 
 
 class CerebrasStreamChoice(BaseModel):

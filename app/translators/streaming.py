@@ -151,8 +151,9 @@ async def translate_stream(
             if chunk.choices:
                 choice = chunk.choices[0]
                 
-                if choice.delta and choice.delta.content:
-                    yield create_content_block_delta_event(choice.delta.content, index=0)
+                # Use .text property to handle both content and reasoning (zai-glm-4.7)
+                if choice.delta and choice.delta.text:
+                    yield create_content_block_delta_event(choice.delta.text, index=0)
                 
                 if choice.finish_reason:
                     stop_reason = translate_cerebras_finish_reason(choice.finish_reason)

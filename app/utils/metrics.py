@@ -63,7 +63,11 @@ UPSTREAM_LATENCY = Histogram(
 
 
 def setup_metrics(app: FastAPI):
-    """Set up Prometheus metrics endpoint."""
+    """Set up Prometheus metrics endpoint.
+    
+    NOTE: This only adds the /metrics endpoint. Middleware for tracking
+    active connections should be added in main.py BEFORE app startup.
+    """
     
     @app.get("/metrics")
     async def metrics():
@@ -71,12 +75,13 @@ def setup_metrics(app: FastAPI):
             content=generate_latest(),
             media_type=CONTENT_TYPE_LATEST
         )
-    
-    @app.middleware("http")
-    async def track_active_connections(request: Request, call_next):
-        ACTIVE_CONNECTIONS.inc()
-        try:
-            response = await call_next(request)
-            return response
-        finally:
-            ACTIVE_CONNECTIONS.dec()
+
+
+async def track_active_connections(request: Request, call_next):
+    """Middleware to track active connections. Add this in main.py."""
+    ACTIVE_CONNECTIONS.inc()
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        ACTIVE_CONNECTIONS.dec()

@@ -13,15 +13,16 @@ from app.config import get_settings
 settings = get_settings()
 
 MODEL_MAPPING = {
-    "claude-3-5-sonnet-20241022": "llama-3.3-70b",
-    "claude-3-5-sonnet-latest": "llama-3.3-70b",
-    "claude-sonnet-4-20250514": "llama-3.3-70b",
-    "claude-sonnet-4": "llama-3.3-70b",
-    "claude-3-5-haiku-20241022": "llama-3.1-8b",
-    "claude-3-5-haiku-latest": "llama-3.1-8b",
-    "claude-3-opus-20240229": "llama-3.3-70b",
-    "claude-3-opus-latest": "llama-3.3-70b",
-    "claude-3-haiku-20240307": "llama-3.1-8b",
+    # All Claude models map to zai-glm-4.7 (Cerebras Code Max)
+    "claude-3-5-sonnet-20241022": "zai-glm-4.7",
+    "claude-3-5-sonnet-latest": "zai-glm-4.7",
+    "claude-sonnet-4-20250514": "zai-glm-4.7",
+    "claude-sonnet-4": "zai-glm-4.7",
+    "claude-3-5-haiku-20241022": "zai-glm-4.7",
+    "claude-3-5-haiku-latest": "zai-glm-4.7",
+    "claude-3-opus-20240229": "zai-glm-4.7",
+    "claude-3-opus-latest": "zai-glm-4.7",
+    "claude-3-haiku-20240307": "zai-glm-4.7",
 }
 
 

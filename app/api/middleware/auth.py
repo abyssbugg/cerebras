@@ -8,7 +8,7 @@ from app.utils.logging import get_logger
 settings = get_settings()
 logger = get_logger(__name__)
 
-EXEMPT_PATHS = {"/", "/health", "/docs", "/openapi.json", "/redoc"}
+EXEMPT_PATHS = {"/", "/health", "/metrics", "/docs", "/openapi.json", "/redoc"}
 
 
 class AuthMiddleware(BaseHTTPMiddleware):

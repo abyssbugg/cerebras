@@ -26,7 +26,8 @@ def translate_response(
     """
     choice = cerebras_response.choices[0] if cerebras_response.choices else None
     
-    content_text = choice.message.content if choice and choice.message else ""
+    # Use .text property to handle both content and reasoning fields (zai-glm-4.7)
+    content_text = choice.message.text if choice and choice.message else ""
     
     content = [ResponseContentBlock(type="text", text=content_text)]
     

@@ -8,7 +8,8 @@ from app.api.middleware.auth import AuthMiddleware
 from app.api.middleware.rate_limit import RateLimitMiddleware
 from app.api.middleware.validation import ValidationMiddleware
 from app.utils.logging import setup_logging, get_logger
-from app.utils.metrics import setup_metrics
+from app.utils.metrics import setup_metrics, track_active_connections
+from starlette.middleware.base import BaseHTTPMiddleware
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -17,7 +18,6 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
-    setup_metrics(app)
     
     # CRITICAL: Validate required configuration before startup
     if not settings.cerebras_api_key:
@@ -53,6 +53,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Add middleware (must be done before app startup)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -67,9 +68,16 @@ app.add_middleware(ValidationMiddleware)
 if settings.rate_limit_enabled:
     app.add_middleware(RateLimitMiddleware)
 
+# Add metrics middleware for tracking active connections
+app.add_middleware(BaseHTTPMiddleware, dispatch=track_active_connections)
+
+# Include routers
 app.include_router(health.router, tags=["Health"])
 app.include_router(messages.router, prefix="/v1", tags=["Messages"])
 app.include_router(token_count.router, prefix="/v1", tags=["Token Count"])
+
+# Setup metrics endpoint (can be done at module level)
+setup_metrics(app)
 
 
 if __name__ == "__main__":
