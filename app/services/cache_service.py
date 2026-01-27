@@ -1,6 +1,6 @@
 import json
 import hashlib
-from typing import Optional, Any
+from typing import Optional
 from app.config import get_settings
 from app.models.anthropic import AnthropicMessagesRequest
 from app.utils.logging import get_logger

@@ -1,8 +1,7 @@
 """Integration tests for end-to-end request flow."""
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, AsyncMock, MagicMock
-import json
+from unittest.mock import patch
 
 from app.main import app
 from app.models.cerebras import (

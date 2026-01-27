@@ -6,9 +6,9 @@ To enable: Set ENABLE_FALLBACK_PROVIDERS=true in environment.
 
 TODO: Wire into messages.py create_message() when ENABLE_FALLBACK_PROVIDERS is true.
 """
-from typing import Optional, List, AsyncIterator
+from typing import Optional, List
 import httpx
-from app.models.cerebras import CerebrasChatRequest, CerebrasChatResponse, CerebrasStreamChunk
+from app.models.cerebras import CerebrasChatRequest, CerebrasChatResponse
 from app.config import get_settings
 from app.utils.logging import get_logger
 from app.utils.metrics import ERROR_COUNT

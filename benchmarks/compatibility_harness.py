@@ -7,7 +7,7 @@ import asyncio
 import json
 import httpx
 import sys
-from typing import List, Tuple
+from typing import List
 from dataclasses import dataclass
 
 
@@ -188,15 +188,14 @@ class CompatibilityHarness:
             )
     
     async def test_streaming_event_order(self) -> TestResult:
-        """Test streaming events follow correct order."""
-        expected_order = [
-            "message_start",
-            "content_block_start",
-            "content_block_delta",  # Can repeat
-            "content_block_stop",
-            "message_delta",
-            "message_stop"
-        ]
+        """Test streaming events follow correct order.
+        
+        Expected order:
+            message_start -> content_block_start -> content_block_delta (repeats) 
+            -> content_block_stop -> message_delta -> message_stop
+        """
+        # Note: Full order validation is done by checking first/last events
+        # The expected order is documented in the docstring above
         
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream(

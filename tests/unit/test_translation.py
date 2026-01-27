@@ -2,14 +2,10 @@
 import pytest
 from app.models.anthropic import (
     AnthropicMessagesRequest,
-    AnthropicMessagesResponse,
     Message,
     TextContent,
-    ResponseContentBlock,
-    Usage,
 )
 from app.models.cerebras import (
-    CerebrasChatRequest,
     CerebrasChatResponse,
     CerebrasMessage,
     CerebrasChoice,

@@ -1,5 +1,4 @@
 """Unit tests for SSE streaming functionality."""
-import pytest
 import json
 from app.translators.streaming import (
     create_message_start_event,

@@ -1,17 +1,7 @@
 import json
-import re
-from typing import Any, Optional
+from typing import Optional
 from pydantic import ValidationError
-from app.models.anthropic import (
-    AnthropicMessagesResponse,
-    MessageStartEvent,
-    ContentBlockStartEvent,
-    ContentBlockDeltaEvent,
-    ContentBlockStopEvent,
-    MessageDeltaEvent,
-    MessageStopEvent,
-    PingEvent,
-)
+from app.models.anthropic import AnthropicMessagesResponse
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)

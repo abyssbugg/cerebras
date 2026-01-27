@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Request, Header
+from fastapi import APIRouter, Header
 from fastapi.responses import StreamingResponse, JSONResponse
 from typing import Optional
 
-from app.models.anthropic import AnthropicMessagesRequest, AnthropicMessagesResponse
+from app.models.anthropic import AnthropicMessagesRequest
 from app.models.errors import AnthropicError, ErrorDetail, APIError, InvalidRequestError
 from app.translators.request import translate_request
 from app.translators.response import translate_response
@@ -11,7 +11,8 @@ from app.translators.prompt_tuning import get_behavioral_prefix, adjust_temperat
 from app.translators.response_enhancer import enhance_response
 from app.clients.cerebras import get_cerebras_client
 from app.services.cache_service import get_cache_service
-from app.services.model_router import get_optimal_model
+# model_router is available but not currently used (intelligent routing is optional)
+# from app.services.model_router import get_optimal_model
 from app.utils.logging import get_logger
 from app.utils.metrics import (
     REQUEST_COUNT,
