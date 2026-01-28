@@ -1,10 +1,10 @@
-# Cerebras Anthropic Gateway
+# Cerebras
 
 A production-ready API gateway that translates Anthropic Messages API requests to Cerebras inference API. Use Claude Code, Cursor, and other Anthropic SDK clients with Cerebras models by changing only 2 environment variables.
 
 ## Requirements
 
-- **Python 3.11 or 3.12** (Python 3.14 not yet supported - see [PYTHON_COMPATIBILITY.md](./PYTHON_COMPATIBILITY.md))
+- **Python 3.11 or 3.12**
 - Redis (optional, for caching and rate limiting)
 - Docker (optional, for containerized deployment)
 
@@ -68,11 +68,11 @@ Copy `.env.example` to `.env` and configure:
 ```bash
 # Required
 CEREBRAS_API_KEY=your-cerebras-key
+GATEWAY_API_KEYS=your-gateway-key-1,your-gateway-key-2
 
 # Optional
-CEREBRAS_MODEL=llama-3.3-70b
-RATE_LIMIT_REQUESTS_PER_MINUTE=60
-CACHE_ENABLED=true
+RATE_LIMIT_ENABLED=false
+CACHE_ENABLED=false
 ```
 
 See `.env.example` for all configuration options.
@@ -88,13 +88,18 @@ See `.env.example` for all configuration options.
 
 ## Model Mapping
 
+All Anthropic model requests are routed to Cerebras `zai-glm-4.7`.
+
 | Anthropic Model | Cerebras Model |
 |-----------------|----------------|
-| claude-sonnet-4-* | llama-3.3-70b |
-| claude-3-5-sonnet-* | llama-3.3-70b |
-| claude-3-opus-* | llama-3.3-70b |
-| claude-3-5-haiku-* | llama-3.1-8b |
-| claude-3-haiku-* | llama-3.1-8b |
+| claude-sonnet-4-* | zai-glm-4.7 |
+| claude-3-5-sonnet-* | zai-glm-4.7 |
+| claude-3-opus-* | zai-glm-4.7 |
+| claude-3-5-haiku-* | zai-glm-4.7 |
+| claude-3-haiku-* | zai-glm-4.7 |
+| (any model) | zai-glm-4.7 |
+
+**Note**: The gateway echoes back the requested model name in responses while internally using `zai-glm-4.7`.
 
 ## Critical Implementation Rules
 
