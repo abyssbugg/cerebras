@@ -1,4 +1,66 @@
+# ===========================================
+# Files to EXCLUDE from GitHub
+# ===========================================
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
 
-#Ignore cursor AI rules
-.cursor/rules/codacy.mdc
+# Virtual environments
+.env
+.venv
+env/
+venv/
+
+# IDE & Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+logs/
+
+# Secrets (NEVER commit these!)
+.env
+.env.local
+.env.*.local
+
+# ===========================================
+# Development-only files (exclude from repo)
+# ===========================================
+
+# Cursor AI folder
+.cursor/
+
+# Code analysis tools
+.codacy/
+.coderabbit.yaml
+
+# Debug/analysis markdown files
+DEBUG_ANALYSIS_SUMMARY.md
+CODE_QUALITY_ANALYSIS_REPORT.md
+PYTHON_COMPATIBILITY.md
+PROJECT_BRIEF.md
+TODO_CHECKLIST.md
+
+# ===========================================
+# Files to INCLUDE (override above rules)
+# ===========================================
+!.env.example
+!README.md
+!DEPLOYMENT_GUIDE.md

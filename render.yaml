@@ -1,0 +1,26 @@
+# Render Blueprint for Cerebras Anthropic Gateway
+# Deploy this to Render.com for always-on hosting
+
+services:
+  - type: web
+    name: cerebras-anthropic-gateway
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: CEREBRAS_API_KEY
+        sync: false  # You'll set this manually in Render dashboard
+      - key: CEREBRAS_BASE_URL
+        value: https://api.cerebras.ai/v1
+      - key: CEREBRAS_MODEL
+        value: zai-glm-4.7
+      - key: GATEWAY_API_KEYS
+        sync: false  # Set your own API keys for the gateway
+      - key: ENVIRONMENT
+        value: production
+      - key: RATE_LIMIT_ENABLED
+        value: "false"  # Disable Redis-based rate limiting for Render free tier
+      - key: CACHE_ENABLED
+        value: "false"  # Disable Redis-based caching for Render free tier
+    healthCheckPath: /health
+    autoDeploy: true
