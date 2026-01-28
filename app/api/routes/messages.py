@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from typing import Optional
 
@@ -28,6 +28,7 @@ logger = get_logger(__name__)
 
 @router.post("/messages")
 async def create_message(
+    http_request: Request,
     request: AnthropicMessagesRequest,
     anthropic_version: Optional[str] = Header(None, alias="anthropic-version"),
     x_api_key: Optional[str] = Header(None, alias="x-api-key"),
@@ -35,12 +36,19 @@ async def create_message(
     start_time = time.time()
     original_model = request.model
     
+    # Get the API key to use for Cerebras (set by auth middleware)
+    # In passthrough mode, this is the user's Cerebras key
+    # In gateway mode, this is the server's Cerebras key
+    cerebras_api_key = getattr(http_request.state, 'cerebras_api_key', None)
+    auth_mode = getattr(http_request.state, 'auth_mode', 'unknown')
+    
     try:
         logger.info(
             "Processing messages request",
             model=original_model,
             stream=request.stream,
-            max_tokens=request.max_tokens
+            max_tokens=request.max_tokens,
+            auth_mode=auth_mode
         )
         
         # Get behavioral prefix for system prompt (PREFIX, never overwrite)
@@ -59,10 +67,10 @@ async def create_message(
         client = get_cerebras_client()
         
         if request.stream:
-            # Streaming response
+            # Streaming response - pass API key to stream
             async def generate_stream():
                 try:
-                    stream = client.chat_completion_stream(cerebras_request)
+                    stream = client.chat_completion_stream(cerebras_request, api_key=cerebras_api_key)
                     async for event in translate_stream(stream, original_model):
                         # Validate each SSE event
                         validate_streaming_event(event)
@@ -107,8 +115,8 @@ async def create_message(
                     ).inc()
                     return JSONResponse(content=cached)
             
-            # Non-streaming response
-            cerebras_response = await client.chat_completion(cerebras_request)
+            # Non-streaming response - pass API key to client
+            cerebras_response = await client.chat_completion(cerebras_request, api_key=cerebras_api_key)
             
             # Translate response (CRITICAL: pass original_model for echo-back)
             anthropic_response = translate_response(cerebras_response, original_model)

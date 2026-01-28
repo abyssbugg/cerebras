@@ -16,6 +16,12 @@ logger = get_logger(__name__)
 
 
 class CerebrasClient:
+    """
+    Cerebras API client supporting both:
+    - Static API key (set in constructor or from settings)
+    - Per-request API key (for passthrough mode, like GLM/MiniMax)
+    """
+    
     def __init__(
         self,
         api_key: Optional[str] = None,
@@ -23,20 +29,27 @@ class CerebrasClient:
         timeout: float = 120.0,
         max_retries: int = 3
     ):
-        self.api_key = api_key or settings.cerebras_api_key
+        self.default_api_key = api_key or settings.cerebras_api_key
         self.base_url = (base_url or settings.cerebras_base_url).rstrip("/")
         self.timeout = timeout
         self.max_retries = max_retries
         
+        # Create client without Authorization header (we'll add it per-request)
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
             headers={
-                "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
             },
             timeout=httpx.Timeout(timeout, connect=10.0),
             limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
         )
+    
+    def _get_headers(self, api_key: Optional[str] = None) -> dict:
+        """Get headers with the appropriate API key."""
+        key = api_key or self.default_api_key
+        if not key:
+            raise APIError("No API key provided", 401)
+        return {"Authorization": f"Bearer {key}"}
 
     async def close(self):
         await self._client.aclose()
@@ -51,10 +64,18 @@ class CerebrasClient:
         self,
         method: str,
         url: str,
+        api_key: Optional[str] = None,
         **kwargs
     ) -> httpx.Response:
         """Execute request with exponential backoff retry."""
         last_exception = None
+        headers = self._get_headers(api_key)
+        
+        # Merge headers with any existing headers in kwargs
+        if "headers" in kwargs:
+            kwargs["headers"].update(headers)
+        else:
+            kwargs["headers"] = headers
         
         for attempt in range(self.max_retries):
             try:
@@ -97,20 +118,32 @@ class CerebrasClient:
 
     async def chat_completion(
         self,
-        request: CerebrasChatRequest
+        request: CerebrasChatRequest,
+        api_key: Optional[str] = None
     ) -> CerebrasChatResponse:
-        """Non-streaming chat completion."""
+        """
+        Non-streaming chat completion.
+        
+        Args:
+            request: The Cerebras chat request
+            api_key: Optional API key to use (for passthrough mode).
+                     If not provided, uses the default key.
+        """
         request_data = request.model_dump(exclude_none=True)
         request_data["stream"] = False
         
         response = await self._request_with_retry(
             "POST",
             "/chat/completions",
+            api_key=api_key,
             json=request_data
         )
         
         if response.status_code == 429:
             raise RateLimitError("Cerebras rate limit exceeded")
+        
+        if response.status_code == 401:
+            raise APIError("Invalid Cerebras API key", 401)
         
         if response.status_code >= 500:
             raise OverloadedError("Cerebras service unavailable")
@@ -128,19 +161,33 @@ class CerebrasClient:
 
     async def chat_completion_stream(
         self,
-        request: CerebrasChatRequest
+        request: CerebrasChatRequest,
+        api_key: Optional[str] = None
     ) -> AsyncIterator[CerebrasStreamChunk]:
-        """Streaming chat completion."""
+        """
+        Streaming chat completion.
+        
+        Args:
+            request: The Cerebras chat request
+            api_key: Optional API key to use (for passthrough mode).
+                     If not provided, uses the default key.
+        """
         request_data = request.model_dump(exclude_none=True)
         request_data["stream"] = True
+        
+        headers = self._get_headers(api_key)
         
         async with self._client.stream(
             "POST",
             "/chat/completions",
-            json=request_data
+            json=request_data,
+            headers=headers
         ) as response:
             if response.status_code == 429:
                 raise RateLimitError("Cerebras rate limit exceeded")
+            
+            if response.status_code == 401:
+                raise APIError("Invalid Cerebras API key", 401)
             
             if response.status_code >= 500:
                 raise OverloadedError("Cerebras service unavailable")

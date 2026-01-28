@@ -19,23 +19,27 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     setup_logging()
     
-    # CRITICAL: Validate required configuration before startup
-    if not settings.cerebras_api_key:
-        logger.error("CEREBRAS_API_KEY is required but not set")
+    # In passthrough mode, CEREBRAS_API_KEY is not required (users provide their own)
+    # Only validate if gateway keys are configured (non-passthrough mode)
+    if settings.gateway_api_keys and not settings.cerebras_api_key:
+        logger.error("CEREBRAS_API_KEY is required when GATEWAY_API_KEYS is set")
         raise RuntimeError(
-            "Missing required configuration: CEREBRAS_API_KEY must be set. "
-            "Please set the CEREBRAS_API_KEY environment variable."
+            "Missing required configuration: CEREBRAS_API_KEY must be set "
+            "when using gateway API keys mode."
         )
     
-    if not settings.gateway_api_keys and settings.environment == "production":
-        logger.warning(
-            "No gateway API keys configured. Authentication is disabled! "
-            "Set GATEWAY_API_KEYS environment variable for production."
-        )
+    # Determine auth mode
+    if settings.gateway_api_keys:
+        auth_mode = "gateway_keys"
+        logger.info("Running in gateway keys mode (users use gateway API keys)")
+    else:
+        auth_mode = "passthrough"
+        logger.info("Running in passthrough mode (users provide their own Cerebras API key)")
     
     logger.info(
         "Starting Cerebras Anthropic Gateway",
         environment=settings.environment,
+        auth_mode=auth_mode,
         cerebras_base_url=settings.cerebras_base_url,
         rate_limiting=settings.rate_limit_enabled,
         caching=settings.cache_enabled
@@ -71,10 +75,16 @@ if settings.rate_limit_enabled:
 # Add metrics middleware for tracking active connections
 app.add_middleware(BaseHTTPMiddleware, dispatch=track_active_connections)
 
-# Include routers
+# Include routers at multiple paths for compatibility
+# Standard Anthropic path: /v1/messages
 app.include_router(health.router, tags=["Health"])
 app.include_router(messages.router, prefix="/v1", tags=["Messages"])
 app.include_router(token_count.router, prefix="/v1", tags=["Token Count"])
+
+# GLM/MiniMax-style path: /anthropic/v1/messages
+# This allows users to set ANTHROPIC_BASE_URL=https://cerebras.onrender.com/anthropic
+app.include_router(messages.router, prefix="/anthropic/v1", tags=["Messages (Anthropic)"])
+app.include_router(token_count.router, prefix="/anthropic/v1", tags=["Token Count (Anthropic)"])
 
 # Setup metrics endpoint (can be done at module level)
 setup_metrics(app)
