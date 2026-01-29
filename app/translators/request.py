@@ -10,6 +10,7 @@ from app.models.anthropic import (
 from app.models.cerebras import CerebrasMessage, CerebrasChatRequest, CerebrasTool
 from app.config import get_settings
 from app.utils.logging import get_logger
+from app.services.context_manager import truncate_conversation
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -351,6 +352,23 @@ def translate_request(
         messages.append(system_msg)
     
     messages.extend(translate_messages(request.messages))
+    
+    # Apply conversation truncation if enabled
+    if settings.truncation_enabled:
+        messages_dicts = [m.model_dump() for m in messages]
+        truncated_dicts, tokens_used, was_truncated = truncate_conversation(
+            messages_dicts,
+            max_tokens=settings.context_limit_tokens
+        )
+        
+        if was_truncated:
+            logger.info(
+                "Applied conversation truncation",
+                tokens_after=tokens_used,
+                max_tokens=settings.context_limit_tokens
+            )
+            # Convert back to CerebrasMessage objects
+            messages = [CerebrasMessage(**m) for m in truncated_dicts]
     
     cerebras_model = get_cerebras_model(request.model)
     
