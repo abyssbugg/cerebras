@@ -57,7 +57,7 @@ Add to your `settings.json` or environment:
 
 ```json
 {
-    "ANTHROPIC_BASE_URL": "https://cerebras-bdkx.onrender.com/anthropic",
+    "ANTHROPIC_BASE_URL": "https://cerebras.onrender.com/anthropic",
     "ANTHROPIC_AUTH_TOKEN": "csk-your-cerebras-api-key",
     "API_TIMEOUT_MS": "3000000",
     "ANTHROPIC_MODEL": "zai-glm-4.7"
@@ -71,7 +71,7 @@ Add to your Droid configuration:
 ```json
 {
     "model": "zai-glm-4.7",
-    "base_url": "https://cerebras-bdkx.onrender.com/anthropic",
+    "base_url": "https://cerebras.onrender.com/anthropic",
     "api_key": "csk-your-cerebras-key",
     "provider": "anthropic"
 }
@@ -98,7 +98,7 @@ If you see HTML error pages from Cloudflare (e.g., "Error code 500/502"), this m
 In Cursor Settings > Models > Anthropic:
 
 ```
-Base URL: https://cerebras-bdkx.onrender.com
+Base URL: https://cerebras.onrender.com
 API Key: csk-your-cerebras-api-key
 ```
 
@@ -108,7 +108,7 @@ API Key: csk-your-cerebras-api-key
 import anthropic
 
 client = anthropic.Anthropic(
-    base_url="https://cerebras-bdkx.onrender.com",
+    base_url="https://cerebras.onrender.com",
     api_key="csk-your-cerebras-api-key"
 )
 
