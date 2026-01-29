@@ -1,6 +1,8 @@
-# Cerebras
+# Cerebras Gateway
 
-A production-ready API gateway that translates Anthropic Messages API requests to Cerebras inference API. Use Claude Code, Cursor, and other Anthropic SDK clients with Cerebras models by changing only 2 environment variables.
+[![CI](https://github.com/abyssbugg/cerebras/actions/workflows/ci.yml/badge.svg)](https://github.com/abyssbugg/cerebras/actions/workflows/ci.yml)
+
+A production-ready API gateway that translates Anthropic Messages API requests to Cerebras inference API. Use Claude Code, Cursor, Droid, and other Anthropic SDK clients with Cerebras models.
 
 ## Requirements
 
@@ -45,6 +47,70 @@ curl -X POST http://localhost:8080/v1/messages \
 
 ```bash
 ./scripts/smoke_test.sh http://localhost:8080 test-key
+```
+
+## Client Configuration
+
+### Claude Code
+
+Add to your `settings.json` or environment:
+
+```json
+{
+    "ANTHROPIC_BASE_URL": "https://cerebras-bdkx.onrender.com/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "csk-your-cerebras-api-key",
+    "API_TIMEOUT_MS": "3000000",
+    "ANTHROPIC_MODEL": "zai-glm-4.7"
+}
+```
+
+### Droid CLI
+
+Add to your Droid configuration:
+
+```json
+{
+    "model": "zai-glm-4.7",
+    "base_url": "https://cerebras-bdkx.onrender.com/anthropic",
+    "api_key": "csk-your-cerebras-key",
+    "provider": "anthropic"
+}
+```
+
+### Cursor IDE
+
+In Cursor Settings > Models > Anthropic:
+
+```
+Base URL: https://cerebras-bdkx.onrender.com
+API Key: csk-your-cerebras-api-key
+```
+
+### Generic Anthropic SDK
+
+```python
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="https://cerebras-bdkx.onrender.com",
+    api_key="csk-your-cerebras-api-key"
+)
+
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",  # Any model name works
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+### Self-Hosted
+
+If running your own gateway:
+
+```bash
+# Replace with your deployment URL
+export ANTHROPIC_BASE_URL=http://localhost:8080
+export ANTHROPIC_API_KEY=your-gateway-key
 ```
 
 ## Features
