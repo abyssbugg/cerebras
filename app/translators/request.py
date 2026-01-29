@@ -7,7 +7,7 @@ from app.models.anthropic import (
     ToolUseContent,
     ToolResultContent,
 )
-from app.models.cerebras import CerebrasMessage, CerebrasChatRequest
+from app.models.cerebras import CerebrasMessage, CerebrasChatRequest, CerebrasTool
 from app.config import get_settings
 
 settings = get_settings()
@@ -89,6 +89,55 @@ def build_system_message(system: Optional[str], behavioral_prefix: str = "") -> 
     return None
 
 
+def translate_tools(tools) -> Optional[List[CerebrasTool]]:
+    """
+    Translate Anthropic tools to Cerebras (OpenAI) format.
+    
+    Anthropic format:
+        {"name": "...", "description": "...", "input_schema": {...}}
+    
+    OpenAI/Cerebras format:
+        {"type": "function", "function": {"name": "...", "description": "...", "parameters": {...}}}
+    """
+    if not tools:
+        return None
+    
+    cerebras_tools = []
+    for tool in tools:
+        cerebras_tool = CerebrasTool(
+            type="function",
+            function={
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.input_schema
+            }
+        )
+        cerebras_tools.append(cerebras_tool)
+    
+    return cerebras_tools
+
+
+def translate_tool_choice(tool_choice) -> Optional[str]:
+    """
+    Translate Anthropic tool_choice to Cerebras format.
+    
+    Anthropic: {"type": "auto"|"any"|"tool", "name": "..."}
+    Cerebras/OpenAI: "auto"|"none"|"required" or {"type": "function", "function": {"name": "..."}}
+    """
+    if not tool_choice:
+        return None
+    
+    if tool_choice.type == "auto":
+        return "auto"
+    elif tool_choice.type == "any":
+        return "required"  # "any" in Anthropic means "must use a tool" = "required" in OpenAI
+    elif tool_choice.type == "tool" and tool_choice.name:
+        # Specific tool requested
+        return {"type": "function", "function": {"name": tool_choice.name}}
+    
+    return "auto"
+
+
 def translate_request(
     request: AnthropicMessagesRequest,
     behavioral_prefix: str = ""
@@ -107,6 +156,10 @@ def translate_request(
     if request.stop_sequences:
         stop = request.stop_sequences if len(request.stop_sequences) > 1 else request.stop_sequences[0]
     
+    # Translate tools if present
+    cerebras_tools = translate_tools(request.tools)
+    cerebras_tool_choice = translate_tool_choice(request.tool_choice)
+    
     return CerebrasChatRequest(
         model=cerebras_model,
         messages=messages,
@@ -114,5 +167,7 @@ def translate_request(
         temperature=request.temperature,
         top_p=request.top_p,
         stop=stop,
-        stream=request.stream
+        stream=request.stream,
+        tools=cerebras_tools,
+        tool_choice=cerebras_tool_choice
     )

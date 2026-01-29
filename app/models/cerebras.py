@@ -2,15 +2,34 @@ from typing import List, Optional, Literal, Union
 from pydantic import BaseModel, Field
 
 
+class CerebrasToolCall(BaseModel):
+    """Tool call in response."""
+    id: str
+    type: Literal["function"] = "function"
+    function: dict  # Contains name and arguments
+
+
 class CerebrasMessage(BaseModel):
     role: Literal["system", "user", "assistant"]
     content: Optional[str] = None
     reasoning: Optional[str] = None  # zai-glm-4.7 uses reasoning instead of content
+    tool_calls: Optional[List[CerebrasToolCall]] = None  # Tool calls in response
     
     @property
     def text(self) -> str:
         """Get the actual text content (supports both content and reasoning fields)."""
         return self.content or self.reasoning or ""
+
+
+class CerebrasTool(BaseModel):
+    """Tool definition for function calling."""
+    type: Literal["function"] = "function"
+    function: dict  # Contains name, description, parameters
+
+
+class CerebrasToolChoice(BaseModel):
+    """Tool choice configuration."""
+    type: Literal["auto", "none", "required"] = "auto"
 
 
 class CerebrasChatRequest(BaseModel):
@@ -21,12 +40,15 @@ class CerebrasChatRequest(BaseModel):
     top_p: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     stop: Optional[Union[str, List[str]]] = None
     stream: bool = False
+    # Tool calling support (OpenAI-compatible format)
+    tools: Optional[List[CerebrasTool]] = None
+    tool_choice: Optional[Union[str, CerebrasToolChoice]] = None
 
 
 class CerebrasChoice(BaseModel):
     index: int
     message: CerebrasMessage
-    finish_reason: Optional[Literal["stop", "length"]] = None
+    finish_reason: Optional[Literal["stop", "length", "tool_calls"]] = None
 
 
 class CerebrasUsage(BaseModel):
@@ -44,10 +66,19 @@ class CerebrasChatResponse(BaseModel):
     usage: CerebrasUsage
 
 
+class CerebrasStreamToolCallDelta(BaseModel):
+    """Tool call delta in streaming response."""
+    index: int
+    id: Optional[str] = None
+    type: Optional[str] = None
+    function: Optional[dict] = None  # Contains name and arguments fragments
+
+
 class CerebrasStreamDelta(BaseModel):
     role: Optional[str] = None
     content: Optional[str] = None
     reasoning: Optional[str] = None  # zai-glm-4.7 uses reasoning
+    tool_calls: Optional[List[CerebrasStreamToolCallDelta]] = None  # Tool calls in streaming
     
     @property
     def text(self) -> str:
@@ -58,7 +89,7 @@ class CerebrasStreamDelta(BaseModel):
 class CerebrasStreamChoice(BaseModel):
     index: int
     delta: CerebrasStreamDelta
-    finish_reason: Optional[Literal["stop", "length"]] = None
+    finish_reason: Optional[Literal["stop", "length", "tool_calls"]] = None
 
 
 class CerebrasStreamChunk(BaseModel):

@@ -2,13 +2,42 @@ import asyncio
 import json
 import time
 import uuid
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, Optional, Dict, List
 from app.models.cerebras import CerebrasStreamChunk
 from app.config import get_settings
 from app.utils.logging import get_logger
 
 settings = get_settings()
 logger = get_logger(__name__)
+
+
+# Track tool calls being built during streaming
+class ToolCallAccumulator:
+    """Accumulates tool call fragments during streaming."""
+    
+    def __init__(self):
+        self.tool_calls: Dict[int, dict] = {}  # index -> {id, name, arguments}
+    
+    def add_fragment(self, index: int, tool_id: Optional[str], tool_type: Optional[str], function: Optional[dict]):
+        """Add a tool call fragment."""
+        if index not in self.tool_calls:
+            self.tool_calls[index] = {"id": "", "name": "", "arguments": ""}
+        
+        if tool_id:
+            self.tool_calls[index]["id"] = tool_id
+        if function:
+            if function.get("name"):
+                self.tool_calls[index]["name"] = function["name"]
+            if function.get("arguments"):
+                self.tool_calls[index]["arguments"] += function["arguments"]
+    
+    def get_complete_tool_calls(self) -> List[dict]:
+        """Get all accumulated tool calls."""
+        return [
+            {"id": tc["id"], "name": tc["name"], "arguments": tc["arguments"]}
+            for tc in self.tool_calls.values()
+            if tc["id"] and tc["name"]
+        ]
 
 
 def create_message_start_event(message_id: str, model: str, input_tokens: int = 0) -> str:
@@ -88,6 +117,34 @@ def create_ping_event() -> str:
     return f"event: ping\ndata: {json.dumps(event)}\n\n"
 
 
+def create_tool_use_content_block_start_event(index: int, tool_id: str, name: str) -> str:
+    """Create content_block_start for tool_use."""
+    event = {
+        "type": "content_block_start",
+        "index": index,
+        "content_block": {
+            "type": "tool_use",
+            "id": tool_id,
+            "name": name,
+            "input": {}
+        }
+    }
+    return f"event: content_block_start\ndata: {json.dumps(event)}\n\n"
+
+
+def create_tool_use_input_delta_event(index: int, partial_json: str) -> str:
+    """Create content_block_delta for tool_use input."""
+    event = {
+        "type": "content_block_delta",
+        "index": index,
+        "delta": {
+            "type": "input_json_delta",
+            "partial_json": partial_json
+        }
+    }
+    return f"event: content_block_delta\ndata: {json.dumps(event)}\n\n"
+
+
 def translate_cerebras_finish_reason(reason: Optional[str]) -> Optional[str]:
     """Translate Cerebras finish reason to Anthropic format."""
     if not reason:
@@ -95,6 +152,7 @@ def translate_cerebras_finish_reason(reason: Optional[str]) -> Optional[str]:
     mapping = {
         "stop": "end_turn",
         "length": "max_tokens",
+        "tool_calls": "tool_use",
     }
     return mapping.get(reason, "end_turn")
 
@@ -108,11 +166,12 @@ async def translate_stream(
     
     SSE Event Order (CRITICAL):
     1. message_start
-    2. content_block_start
-    3. content_block_delta (repeated)
-    4. content_block_stop
-    5. message_delta
-    6. message_stop
+    2. content_block_start (for text, index=0)
+    3. content_block_delta (repeated for text)
+    4. content_block_stop (for text)
+    5. [If tool calls] content_block_start/delta/stop for each tool (index=1,2,...)
+    6. message_delta
+    7. message_stop
     
     Heartbeat: ping event every 15 seconds (even if upstream is silent)
     """
@@ -124,9 +183,14 @@ async def translate_stream(
     stop_reason = "end_turn"
     last_ping_time = time.time()
     first_chunk = True
+    has_text_content = False
+    text_block_started = False
     
-    # 3. content_block_delta (repeated) with heartbeat monitoring
-    # Extract input_tokens from first chunk if available
+    # Track tool calls being accumulated
+    tool_accumulator = ToolCallAccumulator()
+    tool_blocks_started: Dict[int, bool] = {}  # Track which tool blocks we've started
+    current_content_index = 0  # Track content block index
+    
     try:
         async for chunk in cerebras_stream:
             # Extract usage from first chunk for input_tokens
@@ -136,10 +200,6 @@ async def translate_stream(
                 
                 # 1. message_start (CRITICAL: echo back original_model)
                 yield create_message_start_event(message_id, original_model, input_tokens)
-                
-                # 2. content_block_start
-                yield create_content_block_start_event(index=0)
-                
                 first_chunk = False
             
             # Heartbeat ping every 15 seconds
@@ -151,9 +211,57 @@ async def translate_stream(
             if chunk.choices:
                 choice = chunk.choices[0]
                 
-                # Use .text property to handle both content and reasoning (zai-glm-4.7)
+                # Handle text content
                 if choice.delta and choice.delta.text:
+                    if not text_block_started:
+                        # 2. content_block_start for text
+                        yield create_content_block_start_event(index=0)
+                        text_block_started = True
+                        current_content_index = 1  # Next block will be index 1
+                    
+                    has_text_content = True
                     yield create_content_block_delta_event(choice.delta.text, index=0)
+                
+                # Handle tool calls in streaming
+                if choice.delta and choice.delta.tool_calls:
+                    # Close text block if it was open and we're starting tools
+                    if text_block_started and has_text_content:
+                        yield create_content_block_stop_event(index=0)
+                        text_block_started = False  # Mark as closed
+                    elif not text_block_started and not has_text_content:
+                        # No text content at all, start with tool calls
+                        current_content_index = 0
+                    
+                    for tool_call_delta in choice.delta.tool_calls:
+                        tc_index = tool_call_delta.index
+                        
+                        # Accumulate the fragment
+                        tool_accumulator.add_fragment(
+                            tc_index,
+                            tool_call_delta.id,
+                            tool_call_delta.type,
+                            tool_call_delta.function
+                        )
+                        
+                        # Start the tool block if this is the first fragment with id and name
+                        if tc_index not in tool_blocks_started:
+                            tc = tool_accumulator.tool_calls.get(tc_index, {})
+                            if tc.get("id") and tc.get("name"):
+                                content_idx = current_content_index + tc_index
+                                yield create_tool_use_content_block_start_event(
+                                    content_idx,
+                                    tc["id"],
+                                    tc["name"]
+                                )
+                                tool_blocks_started[tc_index] = True
+                        
+                        # Stream the arguments as they come
+                        if tool_call_delta.function and tool_call_delta.function.get("arguments"):
+                            content_idx = current_content_index + tc_index
+                            yield create_tool_use_input_delta_event(
+                                content_idx,
+                                tool_call_delta.function["arguments"]
+                            )
                 
                 if choice.finish_reason:
                     stop_reason = translate_cerebras_finish_reason(choice.finish_reason)
@@ -163,26 +271,32 @@ async def translate_stream(
                     total_output_tokens = chunk.usage.completion_tokens
                 if hasattr(chunk.usage, 'prompt_tokens') and not input_tokens:
                     input_tokens = chunk.usage.prompt_tokens
+                    
     except asyncio.TimeoutError:
-        # Stream timed out, send final events
         logger.warning("Stream timeout, completing response")
     
     # Handle case where no chunks were received
     if first_chunk:
-        # Still send message_start and content_block_start
         yield create_message_start_event(message_id, original_model, input_tokens)
         yield create_content_block_start_event(index=0)
+        text_block_started = True
     
-    # Final ping if time since last ping is close to interval
+    # Final ping if needed
     current_time = time.time()
     if current_time - last_ping_time >= settings.heartbeat_interval_seconds:
         yield create_ping_event()
     
-    # 4. content_block_stop
-    yield create_content_block_stop_event(index=0)
+    # Close text block if still open
+    if text_block_started:
+        yield create_content_block_stop_event(index=0)
     
-    # 5. message_delta
+    # Close any tool blocks that were started
+    for tc_index in sorted(tool_blocks_started.keys()):
+        content_idx = (1 if has_text_content else 0) + tc_index
+        yield create_content_block_stop_event(index=content_idx)
+    
+    # 6. message_delta
     yield create_message_delta_event(stop_reason=stop_reason, output_tokens=total_output_tokens)
     
-    # 6. message_stop
+    # 7. message_stop
     yield create_message_stop_event()
