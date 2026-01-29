@@ -204,4 +204,4 @@ class TestModelEchoBackInStreaming:
         
         # Model in message_start must be the requested model
         assert data["message"]["model"] == requested_model
-        assert data["message"]["model"] != "llama-3.3-70b"  # Not internal model
+        assert data["message"]["model"] != "zai-glm-4.7"  # Not internal model

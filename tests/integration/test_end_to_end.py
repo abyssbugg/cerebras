@@ -25,7 +25,7 @@ def mock_cerebras_response():
         id="test-id",
         object="chat.completion",
         created=1234567890,
-        model="llama-3.3-70b",
+        model="zai-glm-4.7",
         choices=[
             CerebrasChoice(
                 index=0,
@@ -143,7 +143,7 @@ class TestNonStreamingMessages:
                 data = response.json()
                 # CRITICAL: Response must have requested model, not internal model
                 assert data["model"] == requested_model
-                assert data["model"] != "llama-3.3-70b"
+                assert data["model"] != "zai-glm-4.7"
 
 
 class TestTokenCount:

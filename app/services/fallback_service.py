@@ -1,10 +1,20 @@
 """
-Fallback Provider Service - OPTIONAL FEATURE (not currently wired)
+Fallback Provider Service - OPTIONAL FEATURE
 
 This service provides multi-provider fallback when Cerebras is unavailable.
-To enable: Set ENABLE_FALLBACK_PROVIDERS=true in environment.
+Currently implemented but not wired into the main request flow by design.
 
-TODO: Wire into messages.py create_message() when ENABLE_FALLBACK_PROVIDERS is true.
+STATUS: Ready for integration when needed
+REASON: Most deployments don't need fallback providers since Cerebras has
+        high availability. This is kept as a ready-to-use module for
+        enterprise deployments requiring multi-provider redundancy.
+
+To enable in the future:
+1. Set ENABLE_FALLBACK_PROVIDERS=true in environment
+2. Set GROQ_API_KEY and/or TOGETHER_API_KEY
+3. Import and call get_fallback_service() in messages.py on Cerebras failures
+
+Fallback order: Cerebras -> Groq -> Together AI
 """
 from typing import Optional, List
 import httpx

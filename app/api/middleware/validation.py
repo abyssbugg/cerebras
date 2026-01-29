@@ -64,8 +64,10 @@ class ValidationMiddleware(BaseHTTPMiddleware):
                 ).model_dump()
             )
         
-        # CRITICAL: Validate message-specific fields for /v1/messages endpoint
-        if request.url.path == "/v1/messages":
+        # CRITICAL: Validate message-specific fields for /v1/messages endpoints
+        # Check both standard and anthropic-prefixed paths
+        messages_paths = {"/v1/messages", "/anthropic/v1/messages"}
+        if request.url.path in messages_paths:
             validation_error = await self._validate_messages_request(request)
             if validation_error:
                 return validation_error
@@ -76,11 +78,18 @@ class ValidationMiddleware(BaseHTTPMiddleware):
         """
         Validate messages endpoint specific constraints.
         CRITICAL: Enforce MAX_MESSAGES and MAX_MESSAGE_LENGTH limits.
+        
+        Note: FastAPI/Starlette caches the body internally, so reading it here
+        doesn't prevent it from being read again by the route handler. We also
+        store the parsed JSON in request.state for potential reuse.
         """
         try:
-            # Read and parse body
+            # Read and parse body (Starlette caches this internally)
             body = await request.body()
             data = json.loads(body)
+            
+            # Store parsed body in request state for potential reuse
+            request.state.validated_body = data
             
             # Validate messages array
             messages = data.get("messages", [])

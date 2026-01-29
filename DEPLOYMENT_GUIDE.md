@@ -217,6 +217,39 @@ For always-on service without cold starts:
 
 ---
 
+## Performance Tuning
+
+### Uvicorn Workers
+
+For high-traffic deployments, increase the number of uvicorn workers:
+
+```bash
+# Instead of the default single worker:
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+# Use multiple workers (recommended: 2-4 per CPU core):
+uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 4
+```
+
+**Render Configuration:**
+Update the Start Command in Render dashboard:
+```
+uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 4
+```
+
+**Docker Configuration:**
+Update the CMD in Dockerfile:
+```dockerfile
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4"]
+```
+
+**Guidelines:**
+- **Development:** 1 worker (default)
+- **Production (small):** 2-4 workers
+- **Production (high traffic):** 4-8 workers (requires paid tier)
+
+---
+
 ## Troubleshooting
 
 ### "Service is sleeping"

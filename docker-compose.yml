@@ -8,7 +8,7 @@ services:
     environment:
       - CEREBRAS_API_KEY=${CEREBRAS_API_KEY}
       - CEREBRAS_BASE_URL=${CEREBRAS_BASE_URL:-https://api.cerebras.ai/v1}
-      - CEREBRAS_MODEL=${CEREBRAS_MODEL:-llama-3.3-70b}
+      - CEREBRAS_MODEL=${CEREBRAS_MODEL:-zai-glm-4.7}
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DEBUG=${DEBUG:-false}
       - GATEWAY_API_KEYS=${GATEWAY_API_KEYS:-}

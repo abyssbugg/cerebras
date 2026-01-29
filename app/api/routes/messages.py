@@ -18,6 +18,7 @@ from app.utils.metrics import (
     REQUEST_COUNT,
     REQUEST_LATENCY,
     TOKENS_PROCESSED,
+    STREAMING_CONNECTIONS,
 )
 from app.utils.schema_validator import validate_response, validate_streaming_event
 import time
@@ -69,6 +70,8 @@ async def create_message(
         if request.stream:
             # Streaming response - pass API key to stream
             async def generate_stream():
+                # Track active streaming connections
+                STREAMING_CONNECTIONS.inc()
                 try:
                     stream = client.chat_completion_stream(cerebras_request, api_key=cerebras_api_key)
                     async for event in translate_stream(stream, original_model):
@@ -84,6 +87,9 @@ async def create_message(
                     # Validate error event before yielding
                     validate_streaming_event(error_event)
                     yield error_event
+                finally:
+                    # Decrement streaming connections when done
+                    STREAMING_CONNECTIONS.dec()
             
             REQUEST_COUNT.labels(
                 method="POST",

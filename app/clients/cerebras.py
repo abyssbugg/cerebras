@@ -10,6 +10,7 @@ from app.models.cerebras import (
 from app.models.errors import APIError, RateLimitError, OverloadedError
 from app.config import get_settings
 from app.utils.logging import get_logger
+from app.utils.metrics import UPSTREAM_LATENCY
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -26,13 +27,15 @@ class CerebrasClient:
         self,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
-        timeout: float = 120.0,
-        max_retries: int = 3
+        timeout: Optional[float] = None,
+        connect_timeout: Optional[float] = None,
+        max_retries: Optional[int] = None
     ):
         self.default_api_key = api_key or settings.cerebras_api_key
         self.base_url = (base_url or settings.cerebras_base_url).rstrip("/")
-        self.timeout = timeout
-        self.max_retries = max_retries
+        self.timeout = timeout or settings.cerebras_timeout_seconds
+        self.connect_timeout = connect_timeout or settings.cerebras_connect_timeout_seconds
+        self.max_retries = max_retries if max_retries is not None else settings.cerebras_max_retries
         
         # Create client without Authorization header (we'll add it per-request)
         self._client = httpx.AsyncClient(
@@ -40,7 +43,7 @@ class CerebrasClient:
             headers={
                 "Content-Type": "application/json",
             },
-            timeout=httpx.Timeout(timeout, connect=10.0),
+            timeout=httpx.Timeout(self.timeout, connect=self.connect_timeout),
             limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
         )
     
@@ -132,12 +135,20 @@ class CerebrasClient:
         request_data = request.model_dump(exclude_none=True)
         request_data["stream"] = False
         
+        # Track upstream latency
+        import time
+        upstream_start = time.time()
+        
         response = await self._request_with_retry(
             "POST",
             "/chat/completions",
             api_key=api_key,
             json=request_data
         )
+        
+        # Record upstream latency
+        upstream_latency = time.time() - upstream_start
+        UPSTREAM_LATENCY.observe(upstream_latency)
         
         if response.status_code == 429:
             raise RateLimitError("Cerebras rate limit exceeded")

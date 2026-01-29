@@ -1,4 +1,5 @@
 import time
+import threading
 from typing import Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -11,7 +12,9 @@ settings = get_settings()
 logger = get_logger(__name__)
 
 # In-memory rate limiting (fallback when Redis unavailable)
+# Thread-safe with lock for concurrent access
 _rate_limit_store: dict = {}
+_rate_limit_lock = threading.Lock()
 
 EXEMPT_PATHS = {"/", "/health", "/docs", "/openapi.json", "/redoc"}
 
@@ -128,25 +131,30 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         window_seconds: int,
         max_requests: int
     ) -> tuple[bool, int]:
-        """In-memory sliding window rate limiting (fallback)."""
+        """In-memory sliding window rate limiting (fallback).
+        
+        Thread-safe implementation using a lock to protect
+        concurrent access to the shared rate limit store.
+        """
         current_time = time.time()
         window_start = current_time - window_seconds
         
-        # Initialize if needed
-        if identifier not in _rate_limit_store:
-            _rate_limit_store[identifier] = []
-        
-        # Remove old requests
-        _rate_limit_store[identifier] = [
-            ts for ts in _rate_limit_store[identifier]
-            if ts > window_start
-        ]
-        
-        # Check limit
-        if len(_rate_limit_store[identifier]) >= max_requests:
-            return True, window_seconds
-        
-        # Add current request
-        _rate_limit_store[identifier].append(current_time)
-        
-        return False, 0
+        with _rate_limit_lock:
+            # Initialize if needed
+            if identifier not in _rate_limit_store:
+                _rate_limit_store[identifier] = []
+            
+            # Remove old requests
+            _rate_limit_store[identifier] = [
+                ts for ts in _rate_limit_store[identifier]
+                if ts > window_start
+            ]
+            
+            # Check limit
+            if len(_rate_limit_store[identifier]) >= max_requests:
+                return True, window_seconds
+            
+            # Add current request
+            _rate_limit_store[identifier].append(current_time)
+            
+            return False, 0

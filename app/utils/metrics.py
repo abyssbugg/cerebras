@@ -33,7 +33,7 @@ STREAMING_CONNECTIONS = Gauge(
     "cerebras_gateway_streaming_connections",
     "Number of active streaming connections"
 )
-# TODO: Increment in messages.py when stream starts, decrement when complete
+# Tracked in messages.py generate_stream() function
 
 # Cache metrics
 CACHE_HITS = Counter(
@@ -59,7 +59,7 @@ UPSTREAM_LATENCY = Histogram(
     "Upstream (Cerebras) latency in seconds",
     buckets=[0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0]
 )
-# TODO: Track in cerebras_client.py before/after API calls
+# Tracked in cerebras_client.py chat_completion() method
 
 
 def setup_metrics(app: FastAPI):

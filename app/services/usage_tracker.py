@@ -1,10 +1,20 @@
 """
-Usage Tracker Service - OPTIONAL FEATURE (not currently wired)
+Usage Tracker Service - OPTIONAL FEATURE
 
 This service tracks token usage per API key for monitoring and billing.
-To enable: Wire into messages.py after successful completion.
+Currently implemented but not wired into the main request flow by design.
 
-TODO: Call track_usage() in messages.py after each successful request.
+STATUS: Ready for integration when needed
+REASON: Basic deployments using passthrough mode don't need per-key tracking.
+        This is kept as a ready-to-use module for deployments requiring
+        usage monitoring, billing, or quota enforcement.
+
+To enable in the future:
+1. Ensure Redis is available (REDIS_URL configured)
+2. Import get_usage_tracker() in messages.py
+3. Call tracker.track_request() after successful completions
+
+Data retention: 30 days per API key (configurable)
 """
 from typing import Optional
 from datetime import datetime

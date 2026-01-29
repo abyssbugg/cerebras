@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     cerebras_api_key: str = ""
     cerebras_base_url: str = "https://api.cerebras.ai/v1"
     cerebras_model: str = "zai-glm-4.7"
+    
+    # Connection Settings
+    cerebras_timeout_seconds: float = 120.0  # Total request timeout
+    cerebras_connect_timeout_seconds: float = 10.0  # Connection timeout
+    cerebras_max_retries: int = 3  # Max retry attempts
 
     # Gateway Config
     environment: str = "development"
@@ -37,6 +42,11 @@ class Settings(BaseSettings):
     # Server Config
     host: str = "0.0.0.0"
     port: int = 8080
+    
+    # CORS Configuration
+    # Comma-separated list of allowed origins. Use "*" for development only.
+    # Example: "https://cursor.so,https://claude.ai,https://your-domain.com"
+    cors_origins: str = "*"
 
     # Prompt Tuning
     temperature_multiplier_code: float = 0.85

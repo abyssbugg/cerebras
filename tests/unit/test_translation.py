@@ -39,7 +39,7 @@ class TestRequestTranslation:
         
         cerebras_req = translate_request(request)
         
-        assert cerebras_req.model == "llama-3.3-70b"
+        assert cerebras_req.model == "zai-glm-4.7"
         assert cerebras_req.max_tokens == 100
         assert len(cerebras_req.messages) == 1
         assert cerebras_req.messages[0].role == "user"
@@ -71,9 +71,9 @@ class TestRequestTranslation:
     
     def test_model_mapping(self):
         """Test model name mapping."""
-        assert get_cerebras_model("claude-sonnet-4-20250514") == "llama-3.3-70b"
-        assert get_cerebras_model("claude-3-5-haiku-20241022") == "llama-3.1-8b"
-        assert get_cerebras_model("unknown-model") == "llama-3.3-70b"  # Default
+        assert get_cerebras_model("claude-sonnet-4-20250514") == "zai-glm-4.7"
+        assert get_cerebras_model("claude-3-5-haiku-20241022") == "zai-glm-4.7"
+        assert get_cerebras_model("unknown-model") == "zai-glm-4.7"  # Default
     
     def test_content_extraction_string(self):
         """Test text extraction from string content."""
@@ -124,7 +124,7 @@ class TestResponseTranslation:
             id="test-id",
             object="chat.completion",
             created=1234567890,
-            model="llama-3.3-70b",
+            model="zai-glm-4.7",
             choices=[
                 CerebrasChoice(
                     index=0,
@@ -156,7 +156,7 @@ class TestResponseTranslation:
             id="test-id",
             object="chat.completion",
             created=1234567890,
-            model="llama-3.3-70b",
+            model="zai-glm-4.7",
             choices=[
                 CerebrasChoice(
                     index=0,
@@ -170,9 +170,9 @@ class TestResponseTranslation:
         # User requested claude-sonnet-4
         response = translate_response(cerebras_resp, "claude-sonnet-4")
         
-        # Response must have claude-sonnet-4, NOT llama-3.3-70b
+        # Response must have claude-sonnet-4, NOT zai-glm-4.7
         assert response.model == "claude-sonnet-4"
-        assert response.model != "llama-3.3-70b"
+        assert response.model != "zai-glm-4.7"
     
     def test_finish_reason_mapping(self):
         """Test finish reason translation."""
