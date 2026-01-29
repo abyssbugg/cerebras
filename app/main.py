@@ -1,6 +1,9 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import get_settings
 from app.api.routes import messages, token_count, health
@@ -56,6 +59,53 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+
+# Global exception handlers - ensure ALL errors return clean JSON, never HTML
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Handle HTTP exceptions with clean JSON response."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "type": "error",
+            "error": {
+                "type": "api_error",
+                "message": str(exc.detail)
+            }
+        }
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle validation errors with clean JSON response."""
+    return JSONResponse(
+        status_code=400,
+        content={
+            "type": "error",
+            "error": {
+                "type": "invalid_request_error",
+                "message": f"Validation error: {exc.errors()}"
+            }
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """Catch-all handler - ensures no HTML errors leak through."""
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "type": "error",
+            "error": {
+                "type": "api_error",
+                "message": "Internal server error"
+            }
+        }
+    )
 
 # Add middleware (must be done before app startup)
 # CORS: Parse origins from settings (comma-separated string or "*" for all)

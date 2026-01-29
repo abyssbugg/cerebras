@@ -98,7 +98,7 @@ If you see HTML error pages from Cloudflare (e.g., "Error code 500/502"), this m
 In Cursor Settings > Models > Anthropic:
 
 ```
-Base URL: https://cerebras-bdkx.onrender.com
+Base URL: https://cerebras.onrender.com
 API Key: csk-your-cerebras-api-key
 ```
 
@@ -108,7 +108,7 @@ API Key: csk-your-cerebras-api-key
 import anthropic
 
 client = anthropic.Anthropic(
-    base_url="https://cerebras-bdkx.onrender.com",
+    base_url="https://cerebras.onrender.com",
     api_key="csk-your-cerebras-api-key"
 )
 
