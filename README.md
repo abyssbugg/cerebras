@@ -77,6 +77,22 @@ Add to your Droid configuration:
 }
 ```
 
+## Troubleshooting
+
+### Network Errors (502/500 HTML errors)
+
+If you see HTML error pages from Cloudflare (e.g., "Error code 500/502"), this means:
+- Your internet connection may be down
+- The gateway service is temporarily unavailable
+- Cloudflare is having issues
+
+**Solutions:**
+1. Check your internet connection
+2. Wait a few seconds and retry
+3. The gateway auto-recovers - just retry the request
+
+**Note:** These network-level errors happen before reaching the gateway, so the error format is controlled by Cloudflare, not us. Droid/Claude Code should automatically retry on connection failures.
+
 ### Cursor IDE
 
 In Cursor Settings > Models > Anthropic:
