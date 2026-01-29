@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from typing import Optional
 
 from app.models.anthropic import AnthropicMessagesRequest
-from app.models.errors import AnthropicError, ErrorDetail, APIError, InvalidRequestError
+from app.models.errors import AnthropicError, ErrorDetail, APIError, InvalidRequestError, ContextLengthError
 from app.translators.request import translate_request
 from app.translators.response import translate_response
 from app.translators.streaming import translate_stream
@@ -169,6 +169,32 @@ async def create_message(
             status_code=400,
             content=AnthropicError(
                 error=ErrorDetail(type="invalid_request_error", message=e.message)
+            ).model_dump()
+        )
+    
+    except ContextLengthError as e:
+        logger.warning(
+            "Context length exceeded",
+            current_length=e.current_length,
+            max_length=e.max_length
+        )
+        REQUEST_COUNT.labels(
+            method="POST",
+            endpoint="/v1/messages",
+            status="400"
+        ).inc()
+        return JSONResponse(
+            status_code=400,
+            content=AnthropicError(
+                error=ErrorDetail(
+                    type="invalid_request_error",
+                    message=(
+                        f"Context length exceeded: Your request used ~{e.current_length:,} tokens "
+                        f"but the model limit is {e.max_length:,} tokens. "
+                        f"Please start a new conversation or reduce the amount of context. "
+                        f"Tip: The gateway can auto-truncate long content - contact your admin to enable it."
+                    )
+                )
             ).model_dump()
         )
     

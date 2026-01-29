@@ -51,6 +51,14 @@ class Settings(BaseSettings):
     # Prompt Tuning
     temperature_multiplier_code: float = 0.85
     heartbeat_interval_seconds: int = 15
+    
+    # Context Length Management
+    # Cerebras zai-glm-4.7 has 128K token limit (~131,072 tokens)
+    # Claude has 200K - so we need to manage context to avoid errors
+    context_limit_tokens: int = 120000  # Leave buffer below 128K
+    max_tool_result_chars: int = 50000  # Max chars per tool result (0 = no limit)
+    truncation_enabled: bool = True  # Enable automatic truncation
+    truncation_strategy: str = "truncate"  # "truncate", "error", or "warn"
 
     class Config:
         env_file = ".env"

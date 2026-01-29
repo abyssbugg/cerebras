@@ -9,8 +9,10 @@ from app.models.anthropic import (
 )
 from app.models.cerebras import CerebrasMessage, CerebrasChatRequest, CerebrasTool
 from app.config import get_settings
+from app.utils.logging import get_logger
 
 settings = get_settings()
+logger = get_logger(__name__)
 
 MODEL_MAPPING = {
     # All Claude models map to zai-glm-4.7 (Cerebras Code Max)
@@ -28,6 +30,65 @@ MODEL_MAPPING = {
 
 def get_cerebras_model(anthropic_model: str) -> str:
     return MODEL_MAPPING.get(anthropic_model, settings.cerebras_model)
+
+
+def truncate_content(content: str, max_chars: int, context: str = "content") -> str:
+    """
+    Truncate content if it exceeds max_chars.
+    
+    Truncation strategies (configurable via TRUNCATION_STRATEGY):
+    - "truncate": Cut content and add truncation notice
+    - "error": Raise error if content too long
+    - "warn": Log warning but keep full content
+    
+    Args:
+        content: The content to potentially truncate
+        max_chars: Maximum characters allowed (0 = no limit)
+        context: Description for logging (e.g., "file read", "tool result")
+    
+    Returns:
+        Truncated content with notice, or original content
+    """
+    if not settings.truncation_enabled or max_chars <= 0:
+        return content
+    
+    if len(content) <= max_chars:
+        return content
+    
+    strategy = settings.truncation_strategy.lower()
+    
+    if strategy == "error":
+        raise ValueError(
+            f"Content too long: {len(content)} chars exceeds {max_chars} limit. "
+            f"Context: {context}. Set TRUNCATION_STRATEGY=truncate to auto-truncate."
+        )
+    
+    if strategy == "warn":
+        logger.warning(
+            f"Content exceeds limit but not truncating",
+            content_length=len(content),
+            max_chars=max_chars,
+            context=context
+        )
+        return content
+    
+    # Default: truncate
+    truncated = content[:max_chars]
+    chars_removed = len(content) - max_chars
+    
+    truncation_notice = (
+        f"\n\n[TRUNCATED: Content was {len(content):,} chars, "
+        f"showing first {max_chars:,} chars. {chars_removed:,} chars removed to fit context limit.]"
+    )
+    
+    logger.info(
+        f"Truncated {context}",
+        original_length=len(content),
+        truncated_length=max_chars,
+        chars_removed=chars_removed
+    )
+    
+    return truncated + truncation_notice
 
 
 def extract_text_from_content(content) -> str:
@@ -70,7 +131,11 @@ def extract_tool_uses(content) -> List[dict]:
 
 
 def extract_tool_results(content) -> List[dict]:
-    """Extract tool_result blocks from content."""
+    """
+    Extract tool_result blocks from content.
+    
+    Applies truncation if enabled to prevent context length exceeded errors.
+    """
     if isinstance(content, str):
         return []
     
@@ -80,6 +145,14 @@ def extract_tool_results(content) -> List[dict]:
             result_content = block.content
             if not isinstance(result_content, str):
                 result_content = extract_text_from_content(result_content)
+            
+            # Apply truncation to tool results
+            result_content = truncate_content(
+                result_content,
+                settings.max_tool_result_chars,
+                context=f"tool_result:{block.tool_use_id[:16]}..."
+            )
+            
             tool_results.append({
                 "tool_use_id": block.tool_use_id,
                 "content": result_content,
@@ -89,8 +162,17 @@ def extract_tool_results(content) -> List[dict]:
             result_content = block.get("content", "")
             if not isinstance(result_content, str):
                 result_content = extract_text_from_content(result_content)
+            
+            tool_use_id = block.get("tool_use_id", "unknown")
+            # Apply truncation to tool results
+            result_content = truncate_content(
+                result_content,
+                settings.max_tool_result_chars,
+                context=f"tool_result:{tool_use_id[:16]}..."
+            )
+            
             tool_results.append({
-                "tool_use_id": block.get("tool_use_id", ""),
+                "tool_use_id": tool_use_id,
                 "content": result_content,
                 "is_error": block.get("is_error", False)
             })

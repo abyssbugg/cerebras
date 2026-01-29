@@ -7,7 +7,7 @@ from app.models.cerebras import (
     CerebrasChatResponse,
     CerebrasStreamChunk,
 )
-from app.models.errors import APIError, RateLimitError, OverloadedError
+from app.models.errors import APIError, RateLimitError, OverloadedError, ContextLengthError
 from app.config import get_settings
 from app.utils.logging import get_logger
 from app.utils.metrics import UPSTREAM_LATENCY
@@ -166,6 +166,16 @@ class CerebrasClient:
                 status_code=response.status_code,
                 error=error_detail
             )
+            
+            # Check for context length exceeded error
+            if "context_length_exceeded" in error_detail.lower() or "reduce the length" in error_detail.lower():
+                # Try to extract numbers from error
+                import re
+                numbers = re.findall(r'\d+', error_detail)
+                current = int(numbers[0]) if len(numbers) > 0 else 0
+                limit = int(numbers[1]) if len(numbers) > 1 else 131072
+                raise ContextLengthError(current, limit)
+            
             raise APIError(f"Cerebras API error: {error_detail}", response.status_code)
         
         return CerebrasChatResponse(**response.json())
