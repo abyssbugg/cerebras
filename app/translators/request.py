@@ -31,6 +31,7 @@ def get_cerebras_model(anthropic_model: str) -> str:
 
 
 def extract_text_from_content(content) -> str:
+    """Extract only text content, ignoring tool_use and tool_result blocks."""
     if isinstance(content, str):
         return content
     
@@ -39,31 +40,150 @@ def extract_text_from_content(content) -> str:
         if isinstance(block, TextContent) or (isinstance(block, dict) and block.get("type") == "text"):
             text = block.text if isinstance(block, TextContent) else block.get("text", "")
             text_parts.append(text)
-        elif isinstance(block, ToolResultContent) or (isinstance(block, dict) and block.get("type") == "tool_result"):
-            result_content = block.content if isinstance(block, ToolResultContent) else block.get("content", "")
-            if isinstance(result_content, str):
-                text_parts.append(f"[Tool Result]: {result_content}")
-            else:
-                text_parts.append(f"[Tool Result]: {extract_text_from_content(result_content)}")
-        elif isinstance(block, ToolUseContent) or (isinstance(block, dict) and block.get("type") == "tool_use"):
-            name = block.name if isinstance(block, ToolUseContent) else block.get("name", "unknown")
-            input_data = block.input if isinstance(block, ToolUseContent) else block.get("input", {})
-            text_parts.append(f"[Tool Use: {name}]: {input_data}")
         elif isinstance(block, ImageContent) or (isinstance(block, dict) and block.get("type") == "image"):
-            text_parts.append("[Image content not supported by Cerebras - omitted]")
+            text_parts.append("[Image content not supported - omitted]")
+        # tool_use and tool_result are handled separately in translate_messages
     
     return "\n".join(text_parts)
 
 
+def extract_tool_uses(content) -> List[dict]:
+    """Extract tool_use blocks from content."""
+    if isinstance(content, str):
+        return []
+    
+    tool_uses = []
+    for block in content:
+        if isinstance(block, ToolUseContent):
+            tool_uses.append({
+                "id": block.id,
+                "name": block.name,
+                "input": block.input
+            })
+        elif isinstance(block, dict) and block.get("type") == "tool_use":
+            tool_uses.append({
+                "id": block.get("id", ""),
+                "name": block.get("name", ""),
+                "input": block.get("input", {})
+            })
+    return tool_uses
+
+
+def extract_tool_results(content) -> List[dict]:
+    """Extract tool_result blocks from content."""
+    if isinstance(content, str):
+        return []
+    
+    tool_results = []
+    for block in content:
+        if isinstance(block, ToolResultContent):
+            result_content = block.content
+            if not isinstance(result_content, str):
+                result_content = extract_text_from_content(result_content)
+            tool_results.append({
+                "tool_use_id": block.tool_use_id,
+                "content": result_content,
+                "is_error": block.is_error
+            })
+        elif isinstance(block, dict) and block.get("type") == "tool_result":
+            result_content = block.get("content", "")
+            if not isinstance(result_content, str):
+                result_content = extract_text_from_content(result_content)
+            tool_results.append({
+                "tool_use_id": block.get("tool_use_id", ""),
+                "content": result_content,
+                "is_error": block.get("is_error", False)
+            })
+    return tool_results
+
+
 def translate_messages(messages: List[Message]) -> List[CerebrasMessage]:
+    """
+    Translate Anthropic messages to Cerebras/OpenAI format.
+    
+    CRITICAL: Properly handle tool_use and tool_result:
+    
+    Anthropic format:
+        - assistant: [{"type": "tool_use", "id": "...", "name": "...", "input": {...}}]
+        - user: [{"type": "tool_result", "tool_use_id": "...", "content": "..."}]
+    
+    OpenAI/Cerebras format:
+        - assistant: {"role": "assistant", "tool_calls": [{"id": "...", "type": "function", "function": {"name": "...", "arguments": "..."}}]}
+        - tool: {"role": "tool", "tool_call_id": "...", "content": "..."}  <- One message per tool result
+    """
+    from app.models.cerebras import CerebrasToolCall
+    import json
+    
     cerebras_messages = []
     
     for msg in messages:
-        content = extract_text_from_content(msg.content)
-        cerebras_messages.append(CerebrasMessage(
-            role=msg.role,
-            content=content
-        ))
+        if msg.role == "assistant":
+            # Check for tool_use blocks
+            tool_uses = extract_tool_uses(msg.content)
+            text_content = extract_text_from_content(msg.content)
+            
+            if tool_uses:
+                # Assistant message with tool calls
+                tool_calls = [
+                    CerebrasToolCall(
+                        id=tu["id"],
+                        type="function",
+                        function={
+                            "name": tu["name"],
+                            "arguments": json.dumps(tu["input"])
+                        }
+                    )
+                    for tu in tool_uses
+                ]
+                cerebras_messages.append(CerebrasMessage(
+                    role="assistant",
+                    content=text_content if text_content else None,
+                    tool_calls=tool_calls
+                ))
+            else:
+                # Regular assistant message
+                cerebras_messages.append(CerebrasMessage(
+                    role="assistant",
+                    content=text_content
+                ))
+        
+        elif msg.role == "user":
+            # Check for tool_result blocks
+            tool_results = extract_tool_results(msg.content)
+            text_content = extract_text_from_content(msg.content)
+            
+            if tool_results:
+                # Create separate tool messages for each result (OpenAI format)
+                for tr in tool_results:
+                    content = tr["content"]
+                    if tr["is_error"]:
+                        content = f"Error: {content}"
+                    cerebras_messages.append(CerebrasMessage(
+                        role="tool",
+                        content=content,
+                        tool_call_id=tr["tool_use_id"]
+                    ))
+                
+                # If there's also text content, add a user message
+                if text_content:
+                    cerebras_messages.append(CerebrasMessage(
+                        role="user",
+                        content=text_content
+                    ))
+            else:
+                # Regular user message
+                cerebras_messages.append(CerebrasMessage(
+                    role="user",
+                    content=text_content
+                ))
+        
+        else:
+            # System or other roles
+            content = extract_text_from_content(msg.content)
+            cerebras_messages.append(CerebrasMessage(
+                role=msg.role,
+                content=content
+            ))
     
     return cerebras_messages
 

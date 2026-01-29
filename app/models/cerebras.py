@@ -10,10 +10,11 @@ class CerebrasToolCall(BaseModel):
 
 
 class CerebrasMessage(BaseModel):
-    role: Literal["system", "user", "assistant"]
+    role: Literal["system", "user", "assistant", "tool"]  # Added "tool" role for tool results
     content: Optional[str] = None
     reasoning: Optional[str] = None  # zai-glm-4.7 uses reasoning instead of content
     tool_calls: Optional[List[CerebrasToolCall]] = None  # Tool calls in response
+    tool_call_id: Optional[str] = None  # For tool result messages (role="tool")
     
     @property
     def text(self) -> str:
