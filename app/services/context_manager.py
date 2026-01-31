@@ -121,18 +121,55 @@ def truncate_conversation(
     available_tokens = target_tokens - system_tokens
     
     # Drop oldest messages until we fit
+    # IMPORTANT: Keep tool call/result pairs together to avoid API errors
     truncated_conversation = []
     conversation_tokens = 0
     messages_dropped = 0
     
     # Process from newest to oldest (reverse), then reverse back
-    for msg in reversed(conversation):
+    # But we need to handle tool calls and tool results as pairs
+    i = len(conversation) - 1
+    while i >= 0:
+        msg = conversation[i]
         msg_tokens = estimate_message_tokens(msg)
-        if conversation_tokens + msg_tokens <= available_tokens:
-            truncated_conversation.insert(0, msg)
-            conversation_tokens += msg_tokens
+        
+        # Check if this is a tool result - if so, we need the preceding assistant message too
+        if msg.get("role") == "tool":
+            # Find the preceding assistant message with tool_calls
+            pair_tokens = msg_tokens
+            pair_messages = [msg]
+            j = i - 1
+            
+            # Look backwards for the assistant message with tool_calls
+            while j >= 0:
+                prev_msg = conversation[j]
+                prev_tokens = estimate_message_tokens(prev_msg)
+                pair_tokens += prev_tokens
+                pair_messages.insert(0, prev_msg)
+                
+                # Check if this is the assistant message with tool_calls
+                if prev_msg.get("role") == "assistant" and prev_msg.get("tool_calls"):
+                    break
+                j -= 1
+            
+            # Check if the whole pair fits
+            if conversation_tokens + pair_tokens <= available_tokens:
+                for m in pair_messages:
+                    truncated_conversation.insert(0, m)
+                conversation_tokens += pair_tokens
+                i = j - 1  # Skip past the messages we just added
+            else:
+                # Drop the entire pair
+                messages_dropped += len(pair_messages)
+                i = j - 1
         else:
-            messages_dropped += 1
+            # Regular message (user or assistant without tool results following)
+            if conversation_tokens + msg_tokens <= available_tokens:
+                truncated_conversation.insert(0, msg)
+                conversation_tokens += msg_tokens
+            else:
+                messages_dropped += 1
+            i -= 1
     
     # Add truncation notice as first user message if we dropped anything
     if messages_dropped > 0:
