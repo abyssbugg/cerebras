@@ -126,50 +126,46 @@ def truncate_conversation(
     conversation_tokens = 0
     messages_dropped = 0
     
-    # Process from newest to oldest (reverse), then reverse back
-    # But we need to handle tool calls and tool results as pairs
-    i = len(conversation) - 1
-    while i >= 0:
+    # First, identify tool call groups (assistant with tool_calls + all following tool results)
+    # This ensures we keep them together or drop them together
+    message_groups = []
+    i = 0
+    while i < len(conversation):
         msg = conversation[i]
-        msg_tokens = estimate_message_tokens(msg)
         
-        # Check if this is a tool result - if so, we need the preceding assistant message too
-        if msg.get("role") == "tool":
-            # Find the preceding assistant message with tool_calls
-            pair_tokens = msg_tokens
-            pair_messages = [msg]
-            j = i - 1
-            
-            # Look backwards for the assistant message with tool_calls
-            while j >= 0:
-                prev_msg = conversation[j]
-                prev_tokens = estimate_message_tokens(prev_msg)
-                pair_tokens += prev_tokens
-                pair_messages.insert(0, prev_msg)
-                
-                # Check if this is the assistant message with tool_calls
-                if prev_msg.get("role") == "assistant" and prev_msg.get("tool_calls"):
-                    break
-                j -= 1
-            
-            # Check if the whole pair fits
-            if conversation_tokens + pair_tokens <= available_tokens:
-                for m in pair_messages:
-                    truncated_conversation.insert(0, m)
-                conversation_tokens += pair_tokens
-                i = j - 1  # Skip past the messages we just added
-            else:
-                # Drop the entire pair
-                messages_dropped += len(pair_messages)
-                i = j - 1
+        # Check if this is an assistant message with tool_calls
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            # Collect all following tool result messages
+            group = [msg]
+            j = i + 1
+            while j < len(conversation) and conversation[j].get("role") == "tool":
+                group.append(conversation[j])
+                j += 1
+            message_groups.append(group)
+            i = j
         else:
-            # Regular message (user or assistant without tool results following)
-            if conversation_tokens + msg_tokens <= available_tokens:
-                truncated_conversation.insert(0, msg)
-                conversation_tokens += msg_tokens
-            else:
-                messages_dropped += 1
-            i -= 1
+            # Single message (not part of a tool call group)
+            message_groups.append([msg])
+            i += 1
+    
+    # Process groups from newest to oldest
+    for group in reversed(message_groups):
+        group_tokens = sum(estimate_message_tokens(m) for m in group)
+        
+        if conversation_tokens + group_tokens <= available_tokens:
+            # Add all messages in the group (in order) to the front
+            for m in reversed(group):
+                truncated_conversation.insert(0, m)
+            conversation_tokens += group_tokens
+        else:
+            messages_dropped += len(group)
+    
+    # Final validation: ensure no orphaned tool messages at the start
+    while truncated_conversation and truncated_conversation[0].get("role") == "tool":
+        dropped = truncated_conversation.pop(0)
+        messages_dropped += 1
+        conversation_tokens -= estimate_message_tokens(dropped)
+        logger.warning("Dropped orphaned tool message at start of conversation")
     
     # Add truncation notice as first user message if we dropped anything
     if messages_dropped > 0:
