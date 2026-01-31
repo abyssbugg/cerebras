@@ -17,8 +17,9 @@ from app.utils.logging import get_logger
 settings = get_settings()
 logger = get_logger(__name__)
 
-# Approximate: 4 characters = 1 token (conservative estimate)
-CHARS_PER_TOKEN = 4
+# Approximate: 3 characters = 1 token (more conservative for safety)
+# Using 3 instead of 4 to account for tokenizer differences
+CHARS_PER_TOKEN = 3
 
 
 def estimate_tokens(text: str) -> int:

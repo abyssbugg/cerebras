@@ -55,8 +55,8 @@ class Settings(BaseSettings):
     # Context Length Management
     # Cerebras zai-glm-4.7 has 128K token limit (~131,072 tokens)
     # Claude has 200K - so we need to manage context to avoid errors
-    context_limit_tokens: int = 120000  # Leave buffer below 128K
-    max_tool_result_chars: int = 50000  # Max chars per tool result (0 = no limit)
+    context_limit_tokens: int = 100000  # More aggressive buffer (100K vs 131K limit)
+    max_tool_result_chars: int = 30000  # Max chars per tool result (0 = no limit)
     truncation_enabled: bool = True  # Enable automatic truncation
     truncation_strategy: str = "truncate"  # "truncate", "error", or "warn"
 
